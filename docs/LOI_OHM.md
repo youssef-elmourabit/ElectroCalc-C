@@ -1,6 +1,6 @@
-# Jour 1 — comprendre et modifier ElectroCalc
+# Loi d'Ohm — conception et validation
 
-## Étape 1 : environnement et architecture
+## Architecture du module
 
 `main.c`, conservé à sa place, appelle `run_menu()`. `src/` contient les
 implémentations et `include/` leurs déclarations. Un en-tête décrit ce qu'un
@@ -11,7 +11,7 @@ un source, un en-tête ou le Makefile change.
 Exercice rapide : lire une déclaration dans `ohm.h`, puis retrouver son corps
 dans `ohm.c`. Repérer le type du retour et le rôle de chaque paramètre.
 
-## Étape 2 : calcul électrique
+## Calcul électrique et contrat de la fonction
 
 `ohm_voltage(R, I, &U)` vérifie les paramètres, calcule `R * I`, puis écrit le
 résultat dans U. Le retour `bool` indique succès ou refus. Le pointeur `&U`
@@ -25,7 +25,7 @@ supposant que tout calcul décimal est exact en mémoire.
 
 Exercice rapide : calculer à la main U pour R = 470 Ω et I = 0.01 A.
 
-## Étape 3 : lecture et validation
+## Lecture et validation des entrées
 
 `read_line()` lit une ligne dans un tableau de taille fixe et consomme tout
 excédent. Son `enum InputStatus` distingue une ligne valide, une ligne refusée
@@ -42,7 +42,7 @@ conversion restent indépendantes de cette règle physique.
 
 Exercice rapide : prévoir le comportement de `abc`, `0,02`, `2e-2`, `nan` et `0`.
 
-## Étape 4 : menu et tests
+## Interface console et tests
 
 `run_menu()` utilise une boucle et un `switch`. `calculate_ohm()` coordonne
 les questions et le résultat. Les fonctions internes marquées `static` sont
@@ -55,7 +55,7 @@ une vérification échoue. `test_cli.py` envoie des saisies au véritable progra
 inspecte sa sortie et impose un délai pour détecter les boucles bloquées.
 Le script utilise uniquement la bibliothèque standard Python.
 
-## Trois exercices de validation du Jour 1
+## Exercices d'application
 
 1. **Unités et résultat** : vérifier à la main R = 470 Ω, I = 10 mA, convertir
    le courant en A, puis ajouter un cas console attendant 4.7 V et lancer
@@ -67,5 +67,6 @@ Le script utilise uniquement la bibliothèque standard Python.
    correcte. Expliquer le rôle du pointeur `end` et vérifier qu'un seul message
    d'erreur précède le résultat final.
 
-Ces exercices restent dans le Jour 1. Les fonctionnalités du Jour 2 demandent
-un accord distinct.
+Après chaque modification, exécuter `make test` pour vérifier le calcul et
+le comportement de l'interface. Consulter [les formules électriques](FORMULES.md)
+et [le module des résistances](RESISTANCES.md) pour compléter l'étude.
