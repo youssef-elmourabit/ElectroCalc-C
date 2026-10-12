@@ -1,5 +1,6 @@
 #include "input.h"
 #include "ohm.h"
+#include "resistance.h"
 
 #include <float.h>
 #include <math.h>
@@ -35,6 +36,53 @@ static void test_voltage(void)
     CHECK(!ohm_voltage(100.0, INFINITY, &voltage));
     CHECK(!ohm_voltage(DBL_MAX, 2.0, &voltage));
     CHECK(!ohm_voltage(100.0, 0.02, NULL));
+}
+
+static void test_resistances(void)
+{
+    double equivalent = 42.0;
+
+    CHECK(resistance_series(100.0, 220.0, &equivalent) && equivalent == 320.0);
+    CHECK(resistance_series(220.0, 100.0, &equivalent) && equivalent == 320.0);
+    CHECK(resistance_series(100.0, 100.0, &equivalent) && equivalent == 200.0);
+    CHECK(resistance_series(0.1, 0.2, &equivalent) && fabs(equivalent - 0.3) < 1e-15);
+    CHECK(resistance_parallel(100.0, 220.0, &equivalent) && fabs(equivalent - 68.75) < 1e-12);
+    CHECK(resistance_parallel(220.0, 100.0, &equivalent) && fabs(equivalent - 68.75) < 1e-12);
+    CHECK(resistance_parallel(100.0, 100.0, &equivalent) && equivalent == 50.0);
+    CHECK(resistance_parallel(0.1, 0.2, &equivalent) && fabs(equivalent - 1.0 / 15.0) < 1e-15);
+
+    /* Les limites s'appliquent aux deux arguments, dans les deux montages. */
+    const double invalid[] = {0.0, -0.0, -100.0, NAN, INFINITY, -INFINITY};
+    for (size_t index = 0; index < sizeof invalid / sizeof invalid[0]; ++index) {
+        equivalent = 42.0;
+        CHECK(!resistance_series(invalid[index], 100.0, &equivalent) && equivalent == 42.0);
+        CHECK(!resistance_series(100.0, invalid[index], &equivalent) && equivalent == 42.0);
+        CHECK(!resistance_parallel(invalid[index], 100.0, &equivalent) && equivalent == 42.0);
+        CHECK(!resistance_parallel(100.0, invalid[index], &equivalent) && equivalent == 42.0);
+    }
+    CHECK(!resistance_series(100.0, 220.0, NULL));
+    CHECK(!resistance_parallel(100.0, 220.0, NULL));
+
+    /* Une somme trop grande est refusée ; la sortie conserve sa valeur. */
+    equivalent = 42.0;
+    CHECK(!resistance_series(DBL_MAX, DBL_MAX, &equivalent) && equivalent == 42.0);
+    CHECK(!resistance_series(1e308, 1e308, &equivalent) && equivalent == 42.0);
+    CHECK(!resistance_series(DBL_MAX, 1.0, &equivalent) && equivalent == 42.0);
+    CHECK(!resistance_series(1.0, DBL_MAX, &equivalent) && equivalent == 42.0);
+    CHECK(resistance_series(DBL_MAX / 2.0, DBL_MAX / 2.0, &equivalent) && equivalent == DBL_MAX);
+    CHECK(resistance_series(DBL_MIN, DBL_MIN, &equivalent) && equivalent == 2.0 * DBL_MIN);
+    CHECK(resistance_series(DBL_TRUE_MIN, DBL_TRUE_MIN, &equivalent) && equivalent == 2.0 * DBL_TRUE_MIN);
+
+    /* La forme stable traite les cas où le produit, la somme ou les inverses déborderaient. */
+    CHECK(resistance_parallel(DBL_MAX, DBL_MAX, &equivalent) && equivalent == DBL_MAX / 2.0);
+    CHECK(resistance_parallel(1e308, 1e308, &equivalent) && equivalent == 5e307);
+    CHECK(resistance_parallel(1e-200, 1e-200, &equivalent) && equivalent == 5e-201);
+    CHECK(resistance_parallel(1e-200, 1e200, &equivalent) && equivalent == 1e-200);
+    CHECK(resistance_parallel(1e200, 1e-200, &equivalent) && equivalent == 1e-200);
+    CHECK(resistance_parallel(DBL_MIN, DBL_MIN, &equivalent) && equivalent == DBL_MIN / 2.0);
+    CHECK(resistance_parallel(DBL_TRUE_MIN, DBL_MAX, &equivalent) && equivalent == DBL_TRUE_MIN);
+    equivalent = 42.0;
+    CHECK(!resistance_parallel(DBL_TRUE_MIN, DBL_TRUE_MIN, &equivalent) && equivalent == 42.0);
 }
 
 static void test_parsers(void)
@@ -91,6 +139,7 @@ static void test_lines(void)
 int main(void)
 {
     test_voltage();
+    test_resistances();
     test_parsers();
     test_lines();
     printf("Tests C : %d/%d vérifications réussies.\n", checks - failures, checks);
