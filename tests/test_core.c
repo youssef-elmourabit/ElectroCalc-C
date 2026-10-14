@@ -1,5 +1,7 @@
+#include "divider.h"
 #include "input.h"
 #include "ohm.h"
+#include "power.h"
 #include "resistance.h"
 
 #include <float.h>
@@ -85,6 +87,97 @@ static void test_resistances(void)
     CHECK(!resistance_parallel(DBL_TRUE_MIN, DBL_TRUE_MIN, &equivalent) && equivalent == 42.0);
 }
 
+static void test_divider(void)
+{
+    double voltage = 42.0;
+
+    CHECK(divider_voltage(12.0, 1000.0, 2000.0, &voltage) && fabs(voltage - 8.0) < 1e-12);
+    CHECK(divider_voltage(10.0, 1000.0, 1000.0, &voltage) && voltage == 5.0);
+    CHECK(divider_voltage(0.0, 1000.0, 2000.0, &voltage) && voltage == 0.0);
+    CHECK(divider_voltage(-12.0, 1000.0, 2000.0, &voltage) && fabs(voltage + 8.0) < 1e-12);
+    CHECK(divider_voltage(12.0, 2000.0, 1000.0, &voltage) && fabs(voltage - 4.0) < 1e-12);
+    CHECK(divider_voltage(12.0, 1.0, 2.0, &voltage) && fabs(voltage - 8.0) < 1e-12);
+    CHECK(divider_voltage(-0.0, 1.0, 1.0, &voltage) && voltage == 0.0 && signbit(voltage));
+
+    const double invalid_resistances[] = {0.0, -0.0, -1.0, NAN, INFINITY, -INFINITY};
+    for (size_t index = 0; index < sizeof invalid_resistances / sizeof invalid_resistances[0]; ++index) {
+        voltage = 42.0;
+        CHECK(!divider_voltage(12.0, invalid_resistances[index], 1000.0, &voltage) && voltage == 42.0);
+        CHECK(!divider_voltage(12.0, 1000.0, invalid_resistances[index], &voltage) && voltage == 42.0);
+        /* Une entrée nulle ne doit pas court-circuiter la validation de R. */
+        CHECK(!divider_voltage(0.0, invalid_resistances[index], 1000.0, &voltage) && voltage == 42.0);
+        CHECK(!divider_voltage(0.0, 1000.0, invalid_resistances[index], &voltage) && voltage == 42.0);
+    }
+    const double nonfinite[] = {NAN, INFINITY, -INFINITY};
+    for (size_t index = 0; index < sizeof nonfinite / sizeof nonfinite[0]; ++index) {
+        CHECK(!divider_voltage(nonfinite[index], 1000.0, 2000.0, &voltage) && voltage == 42.0);
+    }
+    CHECK(!divider_voltage(12.0, 1000.0, 2000.0, NULL));
+
+    /* Ni la somme R1+R2 ni le produit U*R2 n'ont besoin d'être représentables. */
+    CHECK(divider_voltage(12.0, DBL_MAX, DBL_MAX, &voltage) && voltage == 6.0);
+    CHECK(divider_voltage(DBL_MAX, DBL_MAX, DBL_MAX, &voltage) && voltage == DBL_MAX / 2.0);
+    CHECK(divider_voltage(-DBL_MAX, DBL_MAX, DBL_MAX, &voltage) && voltage == -DBL_MAX / 2.0);
+    CHECK(divider_voltage(DBL_MIN, DBL_MIN, DBL_MIN, &voltage) && voltage == DBL_MIN / 2.0);
+    CHECK(divider_voltage(DBL_MAX, DBL_TRUE_MIN, DBL_MAX, &voltage) && voltage == DBL_MAX);
+    /* Le rapport R2/R1 sous-déborde, mais U * R2/R1 est représentable. */
+    CHECK(divider_voltage(DBL_MAX, DBL_MAX, DBL_TRUE_MIN, &voltage) && voltage == DBL_TRUE_MIN);
+    CHECK(divider_voltage(-DBL_MAX, DBL_MAX, DBL_TRUE_MIN, &voltage) && voltage == -DBL_TRUE_MIN);
+    CHECK(divider_voltage(1e308, 1e308, 1e-200, &voltage) && fabs(voltage / 1e-200 - 1.0) < 1e-12);
+    CHECK(divider_voltage(1e308, 1e308, 4e-308, &voltage) && fabs(voltage / 4e-308 - 1.0) < 1e-12);
+    CHECK(divider_voltage(1e-200, 1e-200, 1e308, &voltage) && voltage == 1e-200);
+    CHECK(divider_voltage(1.0, DBL_TRUE_MIN, DBL_TRUE_MIN, &voltage) && voltage == 0.5);
+    /* Juste au-dessus de la moitié de DBL_TRUE_MIN : arrondi non nul attendu.
+     * Une somme intermédiaire en double masquerait la différence de R1/R2. */
+    CHECK(divider_voltage(DBL_TRUE_MIN, nextafter(1.0, 0.0), 1.0, &voltage) && voltage == DBL_TRUE_MIN);
+    CHECK(divider_voltage(-DBL_TRUE_MIN, nextafter(1.0, 0.0), 1.0, &voltage) && voltage == -DBL_TRUE_MIN);
+    voltage = 42.0;
+    CHECK(!divider_voltage(DBL_TRUE_MIN, 1.0, 1.0, &voltage) && voltage == 42.0);
+    CHECK(!divider_voltage(-DBL_TRUE_MIN, 1.0, 1.0, &voltage) && voltage == 42.0);
+    CHECK(!divider_voltage(DBL_MIN, DBL_MAX, DBL_MIN, &voltage) && voltage == 42.0);
+    CHECK(!divider_voltage(DBL_TRUE_MIN, nextafter(1.0, 2.0), 1.0, &voltage) && voltage == 42.0);
+    CHECK(!divider_voltage(-DBL_TRUE_MIN, nextafter(1.0, 2.0), 1.0, &voltage) && voltage == 42.0);
+}
+
+static void test_power(void)
+{
+    double power = 42.0;
+
+    CHECK(electrical_power(12.0, 2.0, &power) && power == 24.0);
+    CHECK(electrical_power(5.0, 0.5, &power) && power == 2.5);
+    CHECK(electrical_power(0.0, 2.0, &power) && power == 0.0);
+    CHECK(electrical_power(12.0, 0.0, &power) && power == 0.0);
+    CHECK(electrical_power(0.0, 0.0, &power) && power == 0.0);
+    CHECK(electrical_power(-12.0, 2.0, &power) && power == -24.0);
+    CHECK(electrical_power(12.0, -2.0, &power) && power == -24.0);
+    CHECK(electrical_power(-12.0, -2.0, &power) && power == 24.0);
+    CHECK(electrical_power(-0.0, 2.0, &power) && power == 0.0 && signbit(power));
+    CHECK(electrical_power(DBL_MAX, 1.0, &power) && power == DBL_MAX);
+    CHECK(electrical_power(1.0, DBL_MAX, &power) && power == DBL_MAX);
+    CHECK(electrical_power(DBL_MIN, 0.5, &power) && power == DBL_MIN / 2.0);
+    CHECK(electrical_power(DBL_TRUE_MIN, 1.0, &power) && power == DBL_TRUE_MIN);
+    CHECK(electrical_power(DBL_MAX, 0.0, &power) && power == 0.0);
+    CHECK(electrical_power(1e-200, 1e200, &power) && fabs(power - 1.0) < 1e-12);
+    power = 42.0;
+    const double nonfinite[] = {NAN, INFINITY, -INFINITY};
+    for (size_t index = 0; index < sizeof nonfinite / sizeof nonfinite[0]; ++index) {
+        CHECK(!electrical_power(nonfinite[index], 2.0, &power) && power == 42.0);
+        CHECK(!electrical_power(12.0, nonfinite[index], &power) && power == 42.0);
+        CHECK(!electrical_power(nonfinite[index], 0.0, &power) && power == 42.0);
+        CHECK(!electrical_power(0.0, nonfinite[index], &power) && power == 42.0);
+    }
+    CHECK(!electrical_power(12.0, 2.0, NULL));
+    CHECK(!electrical_power(DBL_MAX, 2.0, &power) && power == 42.0);
+    CHECK(!electrical_power(2.0, DBL_MAX, &power) && power == 42.0);
+    CHECK(!electrical_power(-DBL_MAX, 2.0, &power) && power == 42.0);
+    CHECK(!electrical_power(DBL_MAX, -2.0, &power) && power == 42.0);
+    CHECK(!electrical_power(-DBL_MAX, -2.0, &power) && power == 42.0);
+    CHECK(!electrical_power(DBL_TRUE_MIN, 0.5, &power) && power == 42.0);
+    CHECK(!electrical_power(0.5, DBL_TRUE_MIN, &power) && power == 42.0);
+    CHECK(!electrical_power(-DBL_TRUE_MIN, 0.5, &power) && power == 42.0);
+    CHECK(!electrical_power(1e-200, 1e-200, &power) && power == 42.0);
+}
+
 static void test_parsers(void)
 {
     double value;
@@ -140,6 +233,8 @@ int main(void)
 {
     test_voltage();
     test_resistances();
+    test_divider();
+    test_power();
     test_parsers();
     test_lines();
     printf("Tests C : %d/%d vérifications réussies.\n", checks - failures, checks);

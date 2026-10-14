@@ -52,12 +52,13 @@ class ConsoleTests(unittest.TestCase):
             with self.subTest(choice=choice):
                 self.assertIn("choix de menu invalide", self.run_app(choice + "\n0\n"))
 
-    def test_future_features(self):
-        for choice in range(4, 6):
-            with self.subTest(choice=choice):
-                output = self.run_app(f"{choice}\n0\n")
-                self.assertIn("À développer : fonctionnalité prévue", output)
-                self.assertNotIn("Résultat :", output)
+    def test_new_features_are_active(self):
+        for entries, expected in (("4\n12\n1000\n2000\n0\n", "U_sortie = 8 V"),
+                                  ("5\n12\n2\n0\n", "P = 24 W")):
+            with self.subTest(entries=entries):
+                output = self.run_app(entries)
+                self.assertNotIn("À développer", output)
+                self.assertIn("Résultat : " + expected, output)
 
     def test_return_to_menu_and_second_calculation(self):
         output = self.run_app("1\n100\n0.02\n1\n220\n0.05\n0\n")
@@ -203,18 +204,143 @@ class ConsoleTests(unittest.TestCase):
                 self.assertIn("Fin de saisie", output)
 
     def test_all_available_calculations_in_one_session(self):
-        output = self.run_app("2\n100\n220\n3\n100\n220\n1\n100\n0.02\n0\n")
+        output = self.run_app("2\n100\n220\n3\n100\n220\n1\n100\n0.02\n"
+                              "4\n12\n1000\n2000\n5\n12\n2\n0\n")
         self.assertIn("Résultat : R_eq = 320 Ω", output)
         self.assertIn("Résultat : R_eq = 68.75 Ω", output)
         self.assertIn("Résultat : U = 2 V", output)
-        self.assertEqual(output.count("Retour au menu."), 3)
+        self.assertIn("Résultat : U_sortie = 8 V", output)
+        self.assertIn("Résultat : P = 24 W", output)
+        self.assertEqual(output.count("Retour au menu."), 5)
 
     def test_menu_lists_available_features(self):
         output = self.run_app("0\n")
         self.assertIn("2. Deux résistances en série", output)
         self.assertIn("3. Deux résistances en parallèle", output)
-        self.assertIn("4. Diviseur de tension — À développer", output)
-        self.assertIn("5. Puissance électrique — À développer", output)
+        self.assertIn("4. Diviseur de tension", output)
+        self.assertIn("5. Puissance électrique", output)
+        self.assertNotIn("À développer", output)
+
+    def test_divider_reference_values(self):
+        for voltage, r1, r2, expected in (("12", "1000", "2000", "8"),
+                                          ("10", "1000", "1000", "5"),
+                                          ("0", "1000", "2000", "0"),
+                                          ("-12", "1000", "2000", "-8"),
+                                          ("12", "2000", "1000", "4")):
+            with self.subTest(voltage=voltage, r1=r1, r2=r2):
+                output = self.run_app(f"4\n{voltage}\n{r1}\n{r2}\n0\n")
+                self.assertIn(f"Résultat : U_sortie = {expected} V", output)
+                self.assertIn("idéal non chargé", output)
+                self.assertNotIn("Erreur :", output)
+
+    def test_power_reference_values_and_signs(self):
+        for voltage, current, expected in (("12", "2", "24"), ("5", "0.5", "2.5"),
+                                           ("0", "2", "0"), ("12", "0", "0"),
+                                           ("-12", "2", "-24"), ("12", "-2", "-24"),
+                                           ("-12", "-2", "24")):
+            with self.subTest(voltage=voltage, current=current):
+                output = self.run_app(f"5\n{voltage}\n{current}\n0\n")
+                self.assertIn(f"Résultat : P = {expected} W", output)
+                self.assertIn("Convention récepteur", output)
+                self.assertNotIn("Erreur :", output)
+
+    def test_new_calculations_reject_invalid_numbers(self):
+        invalid_values = ("abc", "12abc", "0,5", "", "nan", "inf", "-inf",
+                          "1e9999", "1e-9999", "12 V", "12\x00abc", "1" * 300)
+        for choice, values, expected in ((4, ["12", "1000", "2000"], "U_sortie = 8 V"),
+                                          (5, ["12", "2"], "P = 24 W")):
+            for field in range(len(values)):
+                for invalid in invalid_values:
+                    with self.subTest(choice=choice, field=field, invalid=invalid):
+                        entries = values[:field] + [invalid] + values[field:]
+                        output = self.run_app(f"{choice}\n" + "\n".join(entries) + "\n0\n")
+                        self.assertEqual(output.count("nombre fini valide"), 1)
+                        self.assertIn("Résultat : " + expected, output)
+
+    def test_divider_rejects_nonpositive_resistances(self):
+        for field in (1, 2):
+            for invalid in ("0", "-0", "-1000"):
+                with self.subTest(field=field, invalid=invalid):
+                    values = ["12", "1000", "2000"]
+                    entries = values[:field] + [invalid] + values[field:]
+                    output = self.run_app("4\n" + "\n".join(entries) + "\n0\n")
+                    self.assertEqual(output.count("résistance doit être strictement positive"), 1)
+                    self.assertIn("Résultat : U_sortie = 8 V", output)
+
+    def test_divider_extreme_values(self):
+        largest = "1.7976931348623157e308"
+        cases = (("12", "1e308", "1e308", "6"),
+                 (largest, largest, largest, "8.988465674e+307"),
+                 (largest, "4e-308", largest, "1.797693135e+308"),
+                 ("1e308", "1e308", "1e-200", "1e-200"),
+                 ("1e308", "1e308", "4e-308", "4e-308"),
+                 ("4e-308", "1", "1", "2e-308"),
+                 ("-1e308", "1e308", "4e-308", "-4e-308"))
+        for voltage, r1, r2, expected in cases:
+            with self.subTest(voltage=voltage, r1=r1, r2=r2):
+                output = self.run_app(f"4\n{voltage}\n{r1}\n{r2}\n0\n")
+                self.assertIn(f"Résultat : U_sortie = {expected} V", output)
+                self.assertNotIn("Erreur :", output)
+
+    def test_divider_underflow_and_recovery(self):
+        for voltage in ("1e-200", "-1e-200"):
+            with self.subTest(voltage=voltage):
+                output = self.run_app(f"4\n{voltage}\n1e200\n1e-200\n"
+                                      "4\n12\n1000\n2000\n0\n")
+                self.assertEqual(output.count("tension de sortie hors de la plage"), 1)
+                self.assertEqual(output.count("Résultat : U_sortie"), 1)
+                self.assertIn("Résultat : U_sortie = 8 V", output)
+
+    def test_power_overflow_and_recovery(self):
+        for voltage, current in (("1e308", "10"), ("10", "1e308"),
+                                  ("-1e308", "10"), ("1e308", "-10"),
+                                  ("-1e308", "-10")):
+            with self.subTest(voltage=voltage, current=current):
+                output = self.run_app(f"5\n{voltage}\n{current}\n5\n12\n2\n0\n")
+                self.assertEqual(output.count("puissance hors de la plage"), 1)
+                self.assertEqual(output.count("Résultat : P"), 1)
+                self.assertIn("Résultat : P = 24 W", output)
+
+    def test_power_underflow(self):
+        for voltage in ("1e-200", "-1e-200"):
+            with self.subTest(voltage=voltage):
+                output = self.run_app(f"5\n{voltage}\n1e-200\n0\n")
+                self.assertIn("puissance hors de la plage", output)
+                self.assertNotIn("Résultat :", output)
+
+    def test_power_representable_extremes(self):
+        largest = "1.7976931348623157e308"
+        for voltage, current, expected in ((largest, "1", "1.797693135e+308"),
+                                           ("4e-308", "0.5", "2e-308"),
+                                           ("1e-200", "1e200", "1"),
+                                           (largest, "0", "0")):
+            with self.subTest(voltage=voltage, current=current):
+                output = self.run_app(f"5\n{voltage}\n{current}\n0\n")
+                self.assertIn(f"Résultat : P = {expected} W", output)
+                self.assertNotIn("Erreur :", output)
+
+    def test_new_calculations_scientific_notation_and_spaces(self):
+        for entries, expected in ((" 4 \n 1.2e1 \n 1e3 \n 2e3 \n0\n", "U_sortie = 8 V"),
+                                  (" 5 \n 5e0 \n 5e-1 \n0\n", "P = 2.5 W")):
+            with self.subTest(entries=entries):
+                self.assertIn("Résultat : " + expected, self.run_app(entries))
+
+    def test_new_calculations_eof_at_each_question(self):
+        for choice, values in ((4, ["12", "1000", "2000"]), (5, ["12", "2"])):
+            for count in range(len(values)):
+                with self.subTest(choice=choice, count=count):
+                    entries = "\n".join([str(choice)] + values[:count]) + "\n"
+                    output = self.run_app(entries)
+                    self.assertIn("Fin de saisie", output)
+                    self.assertNotIn("Résultat :", output)
+
+    def test_new_calculations_last_line_without_newline(self):
+        for entries, expected in (("4\n12\n1000\n2000", "U_sortie = 8 V"),
+                                  ("5\n12\n2", "P = 24 W")):
+            with self.subTest(entries=entries):
+                output = self.run_app(entries)
+                self.assertIn("Résultat : " + expected, output)
+                self.assertIn("Fin de saisie", output)
 
 
 if __name__ == "__main__":

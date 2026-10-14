@@ -1,6 +1,8 @@
 #include "cli.h"
+#include "divider.h"
 #include "input.h"
 #include "ohm.h"
+#include "power.h"
 #include "resistance.h"
 
 #include <stdbool.h>
@@ -78,6 +80,54 @@ static bool calculate_resistance(bool parallel)
     return true;
 }
 
+static bool calculate_divider(void)
+{
+    double input_voltage;
+    double resistance1;
+    double resistance2;
+    double output_voltage;
+
+    puts("\nDiviseur de tension idéal non chargé : U_sortie = U_entrée × R2 / (R1 + R2)");
+    puts("R1 relie l'entrée à la sortie ; R2 relie la sortie à la masse.");
+    if (!ask_number("Tension d'entrée U_entrée (V) : ", false, &input_voltage) ||
+        !ask_number("Résistance R1 (Ω) : ", true, &resistance1) ||
+        !ask_number("Résistance R2 (Ω) : ", true, &resistance2)) {
+        return false;
+    }
+
+    if (!divider_voltage(input_voltage, resistance1, resistance2, &output_voltage)) {
+        puts("Erreur : tension de sortie hors de la plage numérique représentable.");
+    } else {
+        printf("Résultat : U_sortie = %.10g V (U_entrée = %.10g V, R1 = %.10g Ω, R2 = %.10g Ω)\n",
+               output_voltage, input_voltage, resistance1, resistance2);
+    }
+    puts("Retour au menu.");
+    return true;
+}
+
+static bool calculate_power(void)
+{
+    double voltage;
+    double current;
+    double power;
+
+    puts("\nPuissance électrique : P = U × I");
+    puts("Convention récepteur : I entre par la borne de référence positive de U.");
+    if (!ask_number("Tension U (V) : ", false, &voltage) ||
+        !ask_number("Courant I (A) : ", false, &current)) {
+        return false;
+    }
+
+    if (!electrical_power(voltage, current, &power)) {
+        puts("Erreur : puissance hors de la plage numérique représentable.");
+    } else {
+        printf("Résultat : P = %.10g W (U = %.10g V, I = %.10g A)\n",
+               power, voltage, current);
+    }
+    puts("Retour au menu.");
+    return true;
+}
+
 int run_menu(void)
 {
     char line[256];
@@ -88,8 +138,8 @@ int run_menu(void)
         puts("1. Loi d'Ohm : U = R × I");
         puts("2. Deux résistances en série");
         puts("3. Deux résistances en parallèle");
-        puts("4. Diviseur de tension — À développer");
-        puts("5. Puissance électrique — À développer");
+        puts("4. Diviseur de tension");
+        puts("5. Puissance électrique");
         puts("0. Quitter");
         printf("Votre choix : ");
         fflush(stdout);
@@ -122,8 +172,17 @@ int run_menu(void)
                 return 0;
             }
             break;
-        default:
-            puts("À développer : fonctionnalité prévue pour une prochaine version.");
+        case 4:
+            if (!calculate_divider()) {
+                puts("\nFin de saisie. Au revoir !");
+                return 0;
+            }
+            break;
+        case 5:
+            if (!calculate_power()) {
+                puts("\nFin de saisie. Au revoir !");
+                return 0;
+            }
             break;
         }
     }

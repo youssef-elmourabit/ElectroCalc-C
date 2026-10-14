@@ -6,8 +6,9 @@ PYTHON = python3
 
 PROGRAM = build/electrocalc
 UNIT_TEST = build/test_core
-SOURCES = main.c src/cli.c src/input.c src/ohm.c src/resistance.c
-HEADERS = include/cli.h include/input.h include/ohm.h include/resistance.h
+CORE_SOURCES = src/input.c src/ohm.c src/resistance.c src/divider.c src/power.c
+SOURCES = main.c src/cli.c $(CORE_SOURCES)
+HEADERS = include/cli.h include/input.h include/ohm.h include/resistance.h include/divider.h include/power.h
 
 .PHONY: all run test clean
 
@@ -19,8 +20,8 @@ build:
 $(PROGRAM): $(SOURCES) $(HEADERS) Makefile | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -o $@
 
-$(UNIT_TEST): tests/test_core.c src/input.c src/ohm.c src/resistance.c $(HEADERS) Makefile | build
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_core.c src/input.c src/ohm.c src/resistance.c $(LDFLAGS) $(LDLIBS) -o $@
+$(UNIT_TEST): tests/test_core.c $(CORE_SOURCES) $(HEADERS) Makefile | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_core.c $(CORE_SOURCES) $(LDFLAGS) $(LDLIBS) -o $@
 
 run: $(PROGRAM)
 	./$(PROGRAM)
