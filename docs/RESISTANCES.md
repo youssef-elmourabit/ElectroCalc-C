@@ -22,14 +22,14 @@ Les deux montages réutilisent la lecture et la validation communes.
 | `src/cli.c` | Options 2 et 3 actives, questions R1/R2 et résultat en Ω |
 | `Makefile` | Nouveau module inclus dans l'application et les tests C ; cible `clean` limitée aux deux exécutables |
 | `tests/test_core.c` | Vérification des calculs, des conversions et des limites numériques |
-| `tests/test_cli.py` | Tests console des calculs, de la validation et des options 4 et 5 en attente |
+| `tests/test_cli.py` | Tests console des cinq calculs et de la validation des entrées |
 | `README.md` | Présentation, fonctionnalités, structure, commandes et exemples |
 | `docs/FORMULES.md` | Formules, raisonnement physique et limites numériques |
 | `docs/RESISTANCES.md` | Conception et validation des calculs de résistances |
 
 Le module respecte le contrat commun de validation des entrées. Le diviseur
-de tension et la puissance restent « À développer » et ne font pas partie
-des calculs disponibles.
+de tension et la puissance disposent de modules séparés :
+[diviseur](DIVISEUR_TENSION.md) et [puissance](PUISSANCE.md).
 
 ## Fonctions et concepts
 
@@ -87,7 +87,7 @@ les sources et journaux sont conservés. `make` reconstruit l'application,
 puis `make test` compile les tests C et exécute les deux suites.
 
 Compilation : C11 avec `-Wall -Wextra -Wpedantic`, sans dépendance tierce.
-Résultat : **93/93 vérifications C** et **35 méthodes console réussies**.
+Résultat de la suite complète : **183/183 vérifications C** et **47 méthodes console réussies**.
 Les méthodes avec `subTest` couvrent plusieurs valeurs et champs de saisie.
 
 | Scénario | Résultat attendu et vérifié |
@@ -108,12 +108,12 @@ Les méthodes avec `subTest` couvrent plusieurs valeurs et champs de saisie.
 | Deux DBL_TRUE_MIN en parallèle (test C) | Refus du résultat arrondi à zéro |
 | Pointeur de sortie nul ou calcul invalide | Refus ; sortie inchangée si fournie |
 | Fin de saisie à R1 ou R2 | Sortie propre sans résultat incomplet |
-| Série, parallèle, loi d'Ohm dans une session | Trois résultats puis retour au menu |
-| Options 4 et 5 | Toujours « À développer » |
+| Série, parallèle, loi d'Ohm, diviseur et puissance dans une session | Cinq résultats puis retour au menu |
+| Options 4 et 5 | Calculs actifs, avec tension en V et puissance en W |
 
-La suite couvre la loi d'Ohm, les deux montages de résistances et la saisie
-commune. Les tests des options en attente vérifient qu'aucun résultat n'est
-produit pour le diviseur de tension ou la puissance.
+La suite couvre la loi d'Ohm, les deux montages de résistances, le diviseur,
+la puissance et la saisie commune. Les contrôles existants des calculs de
+résistances restent inclus dans la suite complète.
 
 ## Exercices d'application
 

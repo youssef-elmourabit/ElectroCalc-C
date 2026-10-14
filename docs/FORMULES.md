@@ -75,15 +75,60 @@ sortie non nul, valeurs finies et strictement positives. Le résultat de sortie
 n'est écrit qu'après validation complète. Chaque calcul traite exactement
 **deux résistances**, sans généralisation à un réseau.
 
-## Formules prévues — non implémentées
+## Diviseur de tension — disponible
 
-| Calcul | Formule | Conditions / unités |
-| --- | --- | --- |
-| Diviseur de tension | U_sortie = U_entrée × R2 / (R1 + R2) | R2 côté masse, sortie à vide, somme non nulle |
-| Puissance électrique | P = U × I | P en watts (W), U en V, I en A |
+**U_sortie = U_entrée × R2 / (R1 + R2)**, tensions en volts (V).
+
+R1 relie l'entrée à la sortie, R2 relie la sortie à la masse. Pour un diviseur
+idéal **non chargé**, le même courant traverse R1 et R2 :
+I = U_entrée / (R1 + R2), puis U_sortie = I × R2.
+
+Les deux résistances doivent être finies et strictement positives. La tension
+d'entrée doit être finie ; elle peut être positive, négative ou nulle. Avec
+12 V, 1000 Ω et 2000 Ω, la sortie vaut **8 V**. Avec deux résistances égales,
+elle vaut U_entrée / 2. Son signe suit celui de l'entrée et sa valeur absolue
+ne dépasse pas celle de l'entrée, à l'arrondi près.
+
+Le code met les résistances à une échelle commune et garde séparés les
+exposants de la tension et de R2. Il évite ainsi un débordement de R1 + R2 ou
+de U_entrée × R2, et préserve certains résultats dont le rapport seul serait
+arrondi à zéro. Exemple : U_entrée = `1e308`, R1 = `1e308`, R2 = `1e-200`
+donne U_sortie ≈ `1e-200` V. Une entrée nulle produit zéro après validation
+des résistances. Un résultat non nul mathématiquement mais arrondi à zéro
+est refusé ; un résultat subnormal non nul est accepté.
+
+Une charge modifie la résistance de la branche R2 et donc le résultat.
+Son effet n'est pas calculé par cette fonction. Voir
+[la conception du diviseur](DIVISEUR_TENSION.md) pour l'algorithme détaillé.
+
+## Puissance électrique — disponible
+
+**P = U × I**, avec P en watts (W), U en volts (V), I en ampères (A).
+
+Les deux entrées sont finies, nulles ou signées. Avec 12 V et 2 A,
+P = **24 W** ; avec 5 V et 0.5 A, P = **2.5 W**.
+
+La **convention récepteur** définit le courant de référence comme entrant par
+la borne de référence positive de la tension. Avec ces références :
+
+- P > 0 : le dipôle absorbe de l'énergie.
+- P < 0 : le dipôle fournit de l'énergie.
+- P = 0 : la puissance est nulle ; U ou I peut être nul.
+
+Deux valeurs négatives donnent un produit positif. Le signe seul de U ou de I
+ne suffit donc pas à déterminer si le dipôle reçoit ou fournit de l'énergie.
+
+Le produit est contrôlé avec `isfinite()` ; un produit devenu infini est refusé.
+Si les deux facteurs sont non nuls mais que leur produit s'arrondit à zéro,
+le calcul est également refusé. Un produit subnormal non nul reste accepté.
+Le résultat de sortie reste inchangé en cas de refus.
 
 Pour une résistance avec convention récepteur : P = R × I² = U² / R,
-avec R > 0 pour la forme comportant une division.
+avec R > 0. Ces deux formes ne sont pas proposées par l'interface, qui utilise
+exclusivement U et I. Pour des signaux variables, P = U × I décrit la puissance
+instantanée si U et I sont des valeurs simultanées ; le programme ne calcule
+pas les puissances active, réactive ou apparente à partir de valeurs efficaces
+et d'un déphasage. Voir [le module de puissance](PUISSANCE.md).
 
 Conversions utiles : 1 kΩ = 1000 Ω ; 1 mA = 0.001 A ; 1 mV = 0.001 V.
 Le programme attend les unités de base ; il ne convertit pas les préfixes.
